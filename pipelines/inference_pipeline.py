@@ -8,7 +8,6 @@ from core.classifier import GenderPresentationClassifier
 from core.uncertainty import UncertaintyHandler
 from core.aggregator import Aggregator
 
-
 class InferencePipeline:
     def __init__(self):
         self.detector = PersonDetector()

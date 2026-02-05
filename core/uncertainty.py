@@ -4,7 +4,7 @@ import math
 from typing import Dict
 
 class UncertaintyHandler:
-    def __init__(self, entropy_threshold: float = 0.9):
+    def __init__(self, entropy_threshold: float = 1.05):
         self.entropy_threshold = entropy_threshold
 
     def entropy(self, probs: Dict[str, float]) -> float:
