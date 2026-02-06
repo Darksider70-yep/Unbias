@@ -1,12 +1,15 @@
 # scripts/run_demo.py
 
-import cv2
 import sys
+import os
+
+# Add project root to Python path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+import cv2
 from pipelines.inference_pipeline import InferencePipeline
 
 pipeline = InferencePipeline()
-
-import os
 
 img_path = os.path.join(os.path.dirname(__file__), "sample.jpg")
 image = cv2.imread(img_path)
