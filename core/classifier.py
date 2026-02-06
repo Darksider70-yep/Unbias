@@ -6,13 +6,13 @@ import numpy as np
 from typing import Dict
 import os
 
-class GenderPresentationClassifier:
+class PresentationSignalModel:
     """
     Estimates gender presentation signals:
     femininity, masculinity, ambiguity
     """
 
-    def __init__(self, input_dim=128):
+    def __init__(self, input_dim: int = 128):
         self.device = torch.device("cpu")
 
         self.model = nn.Sequential(
@@ -24,11 +24,12 @@ class GenderPresentationClassifier:
 
         path = "models/unbias/presentation_model.pt"
         if os.path.exists(path):
-            self.model.load_state_dict(torch.load(path, map_location=self.device))
+            self.model.load_state_dict(
+                torch.load(path, map_location=self.device)
+            )
             print("Loaded calibrated presentation model.")
 
         self.model.eval()
-
         self.labels = ["femininity", "masculinity", "ambiguity"]
 
     def predict(self, features: np.ndarray) -> Dict[str, float]:
