@@ -30,14 +30,14 @@ st.set_page_config(
 # Title & Description
 # ---------------------------
 st.title("⚖️ Unbias")
-st.subheader("Ethical, Uncertainty-Aware Participant Analysis")
+st.subheader("Uncertainty-Aware Gender Presentation Signal Analysis")
 
 st.markdown(
     """
-**Unbias** estimates participant counts and gender *presentation*  
+**Unbias** estimates *gender presentation signals* in groups  
 using computer vision — **without identifying individuals**.
 
-This system is designed to **surface uncertainty**, not hide it.
+This system models **appearance signals**, not identity or self-definition.
 """
 )
 
@@ -46,13 +46,13 @@ This system is designed to **surface uncertainty**, not hide it.
 # ---------------------------
 st.sidebar.header("⚙️ Controls")
 
-enable_gender = st.sidebar.checkbox(
-    "Enable gender presentation estimation",
+enable_signals = st.sidebar.checkbox(
+    "Enable presentation signal estimation",
     value=True
 )
 
 show_boxes = st.sidebar.checkbox("Show detected people", value=True)
-confidence_note = st.sidebar.checkbox("Show confidence explanation", value=True)
+confidence_note = st.sidebar.checkbox("Show explanation", value=True)
 
 st.sidebar.markdown("---")
 st.sidebar.markdown(
@@ -111,23 +111,27 @@ if show_boxes:
         )
 
 # ---------------------------
-# Run Inference (Conditional)
+# Run Inference
 # ---------------------------
-if enable_gender:
+if enable_signals:
     results = pipeline.run(image)
 else:
     results = {
-        "female": 0.0,
-        "male": 0.0,
-        "uncertain": 0.0,
+        "femininity": 0.0,
+        "masculinity": 0.0,
+        "ambiguity": 0.0,
         "total": float(len(boxes))
     }
 
 # ---------------------------
 # Confidence Summary
 # ---------------------------
-if enable_gender and results["total"] > 0:
-    avg_conf = max(results["female"], results["male"]) / results["total"]
+if enable_signals and results["total"] > 0:
+    dominant_signal = max(
+        results["femininity"],
+        results["masculinity"]
+    )
+    avg_conf = dominant_signal / results["total"]
 else:
     avg_conf = 0.0
 
@@ -151,30 +155,33 @@ with col1:
     )
 
     st.caption(
-        f"Detection threshold: {DETECTION_CONFIDENCE} · "
-        "Some individuals may be excluded at higher confidence levels."
+        f"Detection confidence threshold: {DETECTION_CONFIDENCE}"
     )
 
 with col2:
-    st.markdown("### 📊 Aggregate Estimates")
+    st.markdown("### 📊 Aggregate Presentation Signals")
 
     st.markdown(
         f"""
-**Model confidence level:** `{confidence_label}`  
-**Gender estimation enabled:** `{enable_gender}`
+**Signal confidence level:** `{confidence_label}`  
+**Signal estimation enabled:** `{enable_signals}`
 """
     )
 
-    labels = ["Female-presenting", "Male-presenting", "Uncertain"]
+    labels = [
+        "Femininity signal",
+        "Masculinity signal",
+        "Ambiguity signal"
+    ]
     values = [
-        results["female"],
-        results["male"],
-        results["uncertain"]
+        results["femininity"],
+        results["masculinity"],
+        results["ambiguity"]
     ]
 
     fig, ax = plt.subplots()
     bars = ax.bar(labels, values)
-    ax.set_ylabel("Estimated count")
+    ax.set_ylabel("Aggregated signal mass")
     ax.set_ylim(0, results["total"] + 1)
 
     for bar in bars:
@@ -191,26 +198,25 @@ with col2:
 
     st.markdown(
         f"""
-**Total participants detected:** `{int(results["total"])}`  
+**Total presentation signal mass:** `{results["total"]:.2f}`
 """
     )
 
 # ---------------------------
-# Confidence & Ethics Panel
+# Explanation Panel
 # ---------------------------
 if confidence_note:
     st.markdown("---")
-    st.markdown("### 🧠 How to Read These Results")
+    st.markdown("### 🧠 How to Interpret These Results")
 
     st.markdown(
         """
-- Values are **probabilistic estimates**, not exact counts  
-- “Uncertain” reflects visual ambiguity or low confidence  
-- The model may hesitate rather than guess  
-- Results describe **appearance**, not identity  
+- Signals are **probabilistic**, not categorical  
+- “Ambiguity” represents visual uncertainty  
+- The system may intentionally hesitate  
+- Outputs describe **appearance signals**, not gender identity  
 
-> Uncertainty is treated as a sign of integrity,
-> not model failure.
+> Uncertainty is a design feature, not a failure.
 """
     )
 
@@ -219,15 +225,15 @@ if confidence_note:
 # ---------------------------
 report = {
     "participants_detected": int(results["total"]),
-    "distribution": {
-        "female": results["female"],
-        "male": results["male"],
-        "uncertain": results["uncertain"]
+    "presentation_signals": {
+        "femininity": results["femininity"],
+        "masculinity": results["masculinity"],
+        "ambiguity": results["ambiguity"]
     },
     "detection_confidence_threshold": DETECTION_CONFIDENCE,
-    "gender_estimation_enabled": enable_gender,
-    "model_confidence": confidence_label,
-    "notes": "Probabilistic estimate. No identities inferred."
+    "signal_estimation_enabled": enable_signals,
+    "signal_confidence_level": confidence_label,
+    "notes": "Signals estimate visual presentation only. No identities inferred."
 }
 
 st.download_button(
@@ -242,5 +248,5 @@ st.download_button(
 # ---------------------------
 st.markdown("---")
 st.caption(
-    "Unbias • Ethical Computer Vision • Probabilistic, Privacy-Preserving Analysis"
+    "Unbias • Presentation-Signal Estimation • Privacy-Preserving Computer Vision"
 )
