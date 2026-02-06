@@ -32,9 +32,6 @@ class InferencePipeline:
             features = self.extractor.extract(person_crop)
             probs = self.classifier.predict(features)
 
-            if self.uncertainty.should_abstain(probs):
-                probs = {"female": 0.0, "male": 0.0, "uncertain": 1.0}
-
             predictions.append(probs)
 
         return self.aggregator.aggregate(predictions)

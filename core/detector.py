@@ -7,7 +7,7 @@ from ultralytics import YOLO
 BoundingBox = Tuple[int, int, int, int]  # x1, y1, x2, y2
 
 class PersonDetector:
-    def __init__(self, model_path: str = "yolov8n.pt", conf: float = 0.4):
+    def __init__(self, model_path: str = "yolov8n.pt", conf: float = 0.35):
         """
         YOLO-based person detector.
         Detects only the 'person' class.
