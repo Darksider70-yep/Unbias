@@ -12,7 +12,7 @@ class PersonDetector:
         YOLO-based person detector.
         Detects only the 'person' class.
         """
-        self.model = YOLO("models/detector/yolov8n.pt")
+        self.model = YOLO(model_path)
         self.conf = conf
         self.person_class_id = 0  # YOLO class index for 'person'
 

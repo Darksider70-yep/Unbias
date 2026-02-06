@@ -6,7 +6,10 @@ from pipelines.inference_pipeline import InferencePipeline
 
 pipeline = InferencePipeline()
 
-image = cv2.imread("scripts/sample.jpg")
+import os
+
+img_path = os.path.join(os.path.dirname(__file__), "sample.jpg")
+image = cv2.imread(img_path)
 
 if image is None:
     print("Error: Image could not be loaded.")

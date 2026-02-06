@@ -10,11 +10,24 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import streamlit as st
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
 
 from pipelines.inference_pipeline import InferencePipeline
 from core.detector import PersonDetector
 
+from ui_component import (
+    render_header,
+    render_sidebar_controls,
+    render_image_panel,
+    render_signal_chart,
+    render_signal_summary,
+    render_explanation_panel,
+    compute_signal_confidence,
+    render_footer
+)
+
+# ---------------------------
+# Configuration
+# ---------------------------
 DETECTION_CONFIDENCE = 0.35
 
 # ---------------------------
@@ -27,43 +40,14 @@ st.set_page_config(
 )
 
 # ---------------------------
-# Title & Description
+# Header
 # ---------------------------
-st.title("⚖️ Unbias")
-st.subheader("Uncertainty-Aware Gender Presentation Signal Analysis")
-
-st.markdown(
-    """
-**Unbias** estimates *gender presentation signals* in groups  
-using computer vision — **without identifying individuals**.
-
-This system models **appearance signals**, not identity or self-definition.
-"""
-)
+render_header()
 
 # ---------------------------
 # Sidebar Controls
 # ---------------------------
-st.sidebar.header("⚙️ Controls")
-
-enable_signals = st.sidebar.checkbox(
-    "Enable presentation signal estimation",
-    value=True
-)
-
-show_boxes = st.sidebar.checkbox("Show detected people", value=True)
-confidence_note = st.sidebar.checkbox("Show explanation", value=True)
-
-st.sidebar.markdown("---")
-st.sidebar.markdown(
-    """
-### What Unbias Does NOT Do
-- ❌ No facial recognition  
-- ❌ No identity inference  
-- ❌ No image storage  
-- ❌ No binary enforcement
-"""
-)
+enable_signals, show_boxes, show_explanation = render_sidebar_controls()
 
 # ---------------------------
 # Load Pipeline & Detector
@@ -124,116 +108,53 @@ else:
     }
 
 # ---------------------------
-# Confidence Summary
+# Confidence Computation
 # ---------------------------
-if enable_signals and results["total"] > 0:
-    dominant_signal = max(
-        results["femininity"],
-        results["masculinity"]
-    )
-    avg_conf = dominant_signal / results["total"]
-else:
-    avg_conf = 0.0
-
-if avg_conf > 0.45:
-    confidence_label = "High"
-elif avg_conf > 0.30:
-    confidence_label = "Moderate"
-else:
-    confidence_label = "Low"
+confidence_label = compute_signal_confidence(results)
 
 # ---------------------------
-# Layout: Image + Results
+# Layout
 # ---------------------------
 col1, col2 = st.columns([1.2, 1])
 
 with col1:
-    st.image(
+    render_image_panel(
         annotated,
-        caption=f"Detected participants: {len(boxes)}",
-        width="stretch"
-    )
-
-    st.caption(
-        f"Detection confidence threshold: {DETECTION_CONFIDENCE}"
+        boxes,
+        DETECTION_CONFIDENCE
     )
 
 with col2:
-    st.markdown("### 📊 Aggregate Presentation Signals")
-
-    st.markdown(
-        f"""
-**Signal confidence level:** `{confidence_label}`  
-**Signal estimation enabled:** `{enable_signals}`
-"""
+    render_signal_summary(
+        results,
+        confidence_label,
+        enable_signals
     )
-
-    labels = [
-        "Femininity signal",
-        "Masculinity signal",
-        "Ambiguity signal"
-    ]
-    values = [
-        results["femininity"],
-        results["masculinity"],
-        results["ambiguity"]
-    ]
-
-    fig, ax = plt.subplots()
-    bars = ax.bar(labels, values)
-    ax.set_ylabel("Aggregated signal mass")
-    ax.set_ylim(0, results["total"] + 1)
-
-    for bar in bars:
-        height = bar.get_height()
-        ax.text(
-            bar.get_x() + bar.get_width() / 2,
-            height,
-            f"{height:.2f}",
-            ha="center",
-            va="bottom"
-        )
-
-    st.pyplot(fig)
-
-    st.markdown(
-        f"""
-**Total presentation signal mass:** `{results["total"]:.2f}`
-"""
-    )
+    render_signal_chart(results)
 
 # ---------------------------
 # Explanation Panel
 # ---------------------------
-if confidence_note:
-    st.markdown("---")
-    st.markdown("### 🧠 How to Interpret These Results")
-
-    st.markdown(
-        """
-- Signals are **probabilistic**, not categorical  
-- “Ambiguity” represents visual uncertainty  
-- The system may intentionally hesitate  
-- Outputs describe **appearance signals**, not gender identity  
-
-> Uncertainty is a design feature, not a failure.
-"""
-    )
+if show_explanation:
+    render_explanation_panel()
 
 # ---------------------------
 # Downloadable Report
 # ---------------------------
 report = {
-    "participants_detected": int(results["total"]),
+    "participants_detected": int(len(boxes)),
     "presentation_signals": {
         "femininity": results["femininity"],
         "masculinity": results["masculinity"],
         "ambiguity": results["ambiguity"]
     },
-    "detection_confidence_threshold": DETECTION_CONFIDENCE,
-    "signal_estimation_enabled": enable_signals,
     "signal_confidence_level": confidence_label,
-    "notes": "Signals estimate visual presentation only. No identities inferred."
+    "signal_estimation_enabled": enable_signals,
+    "detection_confidence_threshold": DETECTION_CONFIDENCE,
+    "notes": (
+        "Signals estimate visual presentation only. "
+        "No identity or gender is inferred."
+    )
 }
 
 st.download_button(
@@ -246,7 +167,4 @@ st.download_button(
 # ---------------------------
 # Footer
 # ---------------------------
-st.markdown("---")
-st.caption(
-    "Unbias • Presentation-Signal Estimation • Privacy-Preserving Computer Vision"
-)
+render_footer()
