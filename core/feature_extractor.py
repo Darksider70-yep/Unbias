@@ -3,38 +3,33 @@
 import cv2
 import numpy as np
 
-# -----------------------------
-# Optional MediaPipe Support
-# -----------------------------
+# Optional MediaPipe (graceful fallback)
 try:
     import mediapipe as mp
     MEDIAPIPE_AVAILABLE = hasattr(mp, "solutions")
 except ImportError:
     MEDIAPIPE_AVAILABLE = False
 
+from skimage.feature import hog
+
 
 class FeatureExtractor:
     """
-    Extracts non-identifying visual features.
-    Pose-based features are used only if MediaPipe is available.
+    Extracts non-identifying structured visual features
+    for presentation-signal estimation (v1.1).
     """
 
     def __init__(self, output_dim: int = 128):
         self.output_dim = output_dim
-
         self.pose = None
+
         if MEDIAPIPE_AVAILABLE:
             try:
                 self.pose = mp.solutions.pose.Pose(static_image_mode=True)
             except Exception:
-                # Safety net: even partial MediaPipe installs won't crash
                 self.pose = None
 
     def extract_pose_features(self, image: np.ndarray) -> np.ndarray:
-        """
-        Returns pose-based geometry features if available,
-        otherwise returns zeros (graceful degradation).
-        """
         if self.pose is None:
             return np.zeros(6, dtype=np.float32)
 
@@ -59,24 +54,52 @@ class FeatureExtractor:
                 ratio_shoulder_hip,
                 torso_length,
                 arm_spread,
-                1.0  # bias stabilizer
+                1.0
             ],
             dtype=np.float32
         )
+
+    def extract_structured_visual_features(self, gray: np.ndarray) -> np.ndarray:
+        hog_feat = hog(
+            gray,
+            orientations=9,
+            pixels_per_cell=(8, 8),
+            cells_per_block=(2, 2),
+            feature_vector=True
+        )
+
+        sobelx = cv2.Sobel(gray, cv2.CV_32F, 1, 0)
+        sobely = cv2.Sobel(gray, cv2.CV_32F, 0, 1)
+
+        edge_h = np.mean(np.abs(sobelx))
+        edge_v = np.mean(np.abs(sobely))
+
+        mid = gray.shape[1] // 2
+        left = gray[:, :mid]
+        right = np.fliplr(gray[:, mid:])
+
+        symmetry = np.mean(np.abs(left - right[:, :left.shape[1]]))
+
+        return np.concatenate([
+            hog_feat[:80],
+            np.array([edge_h, edge_v, symmetry], dtype=np.float32)
+        ])
 
     def extract(self, person_crop: np.ndarray) -> np.ndarray:
         if person_crop is None or person_crop.size == 0:
             return np.zeros(self.output_dim, dtype=np.float32)
 
-        # Normalize scale and color
         resized = cv2.resize(person_crop, (64, 128), interpolation=cv2.INTER_AREA)
         gray = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY).astype(np.float32) / 255.0
 
-        flattened = gray.flatten()
+        visual_features = self.extract_structured_visual_features(gray)
         pose_features = self.extract_pose_features(resized)
 
-        usable_len = self.output_dim - len(pose_features)
-        base_features = flattened[:usable_len]
+        features = np.concatenate([visual_features, pose_features])
 
-        features = np.concatenate([base_features, pose_features])
+        if len(features) >= self.output_dim:
+            features = features[:self.output_dim]
+        else:
+            features = np.pad(features, (0, self.output_dim - len(features)))
+
         return features.astype(np.float32)
