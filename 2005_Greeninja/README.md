@@ -37,10 +37,9 @@ label=<0_or_1> confidence=<0_to_1>
 ```
 
 ## Packaging
-1. Rename this folder from `TeamID_TeamName` to your actual team name format:
-   `ActualTeamID_ActualTeamName`
+1. Keep folder name as `2005_Greeninja`
 2. Zip the folder as:
-   `ActualTeamID_ActualTeamName_GenderClassification.zip`
+   `2005_Greeninja_GenderClassification.zip`
 
 Ensure this final ZIP root directly contains:
 - `model/model.pth`

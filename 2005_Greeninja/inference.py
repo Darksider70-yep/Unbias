@@ -4,82 +4,67 @@ from pathlib import Path
 from typing import Tuple
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 import torch
-import torch.nn as nn
 
 
-IMAGE_SIZE = 128
 MODEL_PATH = Path(__file__).resolve().parent / "model" / "model.pth"
 DEVICE = torch.device("cpu")
-_MODEL: nn.Module | None = None
+IMAGE_SIZE = 224
+RESIZE_SHORT_EDGE = 256
+MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
+STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
+_MODEL: torch.jit.ScriptModule | None = None
 
 
-class GenderClassifier(nn.Module):
-    def __init__(self) -> None:
-        super().__init__()
-        self.features = nn.Sequential(
-            nn.Conv2d(3, 16, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2),
-            nn.Conv2d(16, 32, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(kernel_size=2),
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.AdaptiveAvgPool2d((1, 1)),
-        )
-        self.classifier = nn.Linear(64, 2)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.features(x)
-        x = x.view(x.size(0), -1)
-        return self.classifier(x)
+def _load_model() -> torch.jit.ScriptModule:
+    global _MODEL
+    if _MODEL is None:
+        if not MODEL_PATH.exists():
+            raise FileNotFoundError(f"Model not found: {MODEL_PATH}")
+        _MODEL = torch.jit.load(str(MODEL_PATH), map_location=DEVICE)
+        _MODEL.eval()
+    return _MODEL
 
 
-def _center_square_crop(image: Image.Image) -> Image.Image:
+def _resize_keep_aspect(image: Image.Image, short_edge: int) -> Image.Image:
     width, height = image.size
-    side = min(width, height)
-    left = (width - side) // 2
-    top = (height - side) // 2
-    return image.crop((left, top, left + side, top + side))
+    if width == 0 or height == 0:
+        raise ValueError("Invalid image with zero width/height.")
+
+    if width < height:
+        new_width = short_edge
+        new_height = int(round(height * (short_edge / width)))
+    else:
+        new_height = short_edge
+        new_width = int(round(width * (short_edge / height)))
+
+    return image.resize((new_width, new_height), Image.BICUBIC)
+
+
+def _center_crop(image: Image.Image, size: int) -> Image.Image:
+    width, height = image.size
+    left = max((width - size) // 2, 0)
+    top = max((height - size) // 2, 0)
+    return image.crop((left, top, left + size, top + size))
+
+
+def _to_tensor(image: Image.Image) -> torch.Tensor:
+    arr = np.asarray(image, dtype=np.float32) / 255.0
+    arr = (arr - MEAN) / STD
+    arr = np.transpose(arr, (2, 0, 1))
+    return torch.from_numpy(arr)
 
 
 def _preprocess(image: Image.Image) -> torch.Tensor:
     image = image.convert("RGB")
-    image = _center_square_crop(image)
-    image = image.resize((IMAGE_SIZE, IMAGE_SIZE), Image.BILINEAR)
+    image = _resize_keep_aspect(image, RESIZE_SHORT_EDGE)
+    image = _center_crop(image, IMAGE_SIZE)
 
-    array = np.asarray(image, dtype=np.float32) / 255.0
-    array = (array - 0.5) / 0.5
-    array = np.transpose(array, (2, 0, 1))
-
-    tensor = torch.from_numpy(array).unsqueeze(0)
-    return tensor
-
-
-def _load_model() -> nn.Module:
-    global _MODEL
-    if _MODEL is not None:
-        return _MODEL
-
-    if not MODEL_PATH.exists():
-        raise FileNotFoundError(f"Model not found at {MODEL_PATH}")
-
-    checkpoint = torch.load(MODEL_PATH, map_location=DEVICE)
-    model = GenderClassifier().to(DEVICE)
-
-    state_dict = checkpoint.get("state_dict", checkpoint)
-    if any(key.startswith("module.") for key in state_dict):
-        state_dict = {
-            key.replace("module.", "", 1): value
-            for key, value in state_dict.items()
-        }
-
-    model.load_state_dict(state_dict, strict=True)
-    model.eval()
-    _MODEL = model
-    return _MODEL
+    original = _to_tensor(image)
+    flipped = _to_tensor(ImageOps.mirror(image))
+    batch = torch.stack([original, flipped], dim=0)
+    return batch
 
 
 def predict(image_path: str) -> Tuple[int, float]:
@@ -98,10 +83,11 @@ def predict(image_path: str) -> Tuple[int, float]:
     model = _load_model()
     with torch.no_grad():
         logits = model(inputs)
-        probs = torch.softmax(logits, dim=1)[0]
-        label = int(torch.argmax(probs).item())
-        confidence = float(probs[label].item())
+        probs = torch.softmax(logits, dim=1)
+        mean_probs = probs.mean(dim=0)
 
+    label = int(torch.argmax(mean_probs).item())
+    confidence = float(mean_probs[label].item())
     return label, confidence
 
 
